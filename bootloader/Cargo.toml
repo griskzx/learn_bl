@@ -1,0 +1,33 @@
+[package]
+name = "learn_bootloader"
+version = "0.1.0"
+authors = ["griskzx"]
+edition = "2021"
+
+[dependencies]
+cortex-m = "0.7"
+cortex-m-rt = "0.7"
+defmt = "1.1.0"
+defmt-rtt = "1.2.0"
+panic-probe = { version = "1.0.0", features = ["print-defmt"] }
+
+
+[dependencies.stm32f4xx-hal]
+version = "0.23.0"
+features = ["stm32f439", "defmt", ]
+
+
+[build-dependencies]
+reqwest = { version = "0.13.3", features = ["blocking"] }
+
+
+# Set the default for dependencies.
+[profile.dev.package."*"]
+opt-level = "s"
+
+[profile.release]
+codegen-units = 1
+incremental = false
+debug = true
+lto = true
+opt-level = "s"
