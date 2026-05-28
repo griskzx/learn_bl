@@ -1,6 +1,10 @@
 #![no_main]
 #![no_std]
 
+pub mod firmware;
+
+pub use firmware::FW_HEADER;
+
 use defmt_rtt as _; // global logger
 
 // TODO(5) adjust HAL import

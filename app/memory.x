@@ -1,7 +1,9 @@
 MEMORY
 {
   /* NOTE K = KiBi = 1024 bytes */
-  FLASH (rx) : ORIGIN = 0x08010000, LENGTH = 1984K
+  HEADER (r) : ORIGIN = 0x08010000, LENGTH = 0x100
+
+  FLASH (rx) : ORIGIN = 0x08010100, LENGTH = 1984K-0x100
   RAM (rwx) : ORIGIN = 0x20000000, LENGTH = 192K
   CCMRAM (rwx) : ORIGIN = 0x10000000, LENGTH = 64K
 }
@@ -14,7 +16,12 @@ MEMORY
 /* NOTE Do NOT modify `_stack_start` unless you know what you are doing */
 _stack_start = ORIGIN(RAM) + LENGTH(RAM);
 
-
+SECTIONS {
+  .fw_header :
+  {
+    KEEP(*(.fw_header))
+  } > HEADER
+}
 
 
  SECTIONS
