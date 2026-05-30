@@ -1,2 +1,10 @@
-/target
+# Rust 构建产物
+/target/
+
+# Cargo.lock（嵌入式 app 作为最终产物，通常不提交 lock 文件）
 Cargo.lock
+
+# IDE / 编辑器
+.idea/
+.vscode/
+.zed/

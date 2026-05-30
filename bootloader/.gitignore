@@ -1,6 +1,17 @@
-/target
-/.idea
-/.antigravitycli
-/resources
-/.vscode
-/.zed
+# Rust 构建产物
+/target/
+
+# IDE / 编辑器
+/.idea/
+/.vscode/
+/.zed/
+
+# probe-rs CLI 产物
+/.antigravitycli/
+
+# 嵌入式资源产物（由构建脚本生成）
+/resources/
+
+# SVD 文件（体积大，由工具链自动获取）
+*.svd
+*.svd.svd
