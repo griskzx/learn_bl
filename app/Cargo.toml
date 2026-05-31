@@ -12,40 +12,6 @@ version = "0.1.0"
 # name = "app"
 # test = false
 
-[[bin]]
-name = "bitfield"
-path = "src/bin/bitfield.rs"
-test = false
-
-[[bin]]
-name = "format"
-path = "src/bin/format.rs"
-test = false
-
-[[bin]]
-name = "hello"
-path = "src/bin/hello.rs"
-test = false
-
-[[bin]]
-name = "levels"
-path = "src/bin/levels.rs"
-test = false
-
-[[bin]]
-name = "overflow"
-path = "src/bin/overflow.rs"
-test = false
-
-[[bin]]
-name = "panic"
-path = "src/bin/panic.rs"
-test = false
-
-[[bin]]
-name = "blinky"
-path = "src/bin/blinky.rs"
-test = false
 
 [lib]
 harness = false
@@ -67,7 +33,7 @@ stm32f4xx-hal = {version="0.23.0",features=["stm32f439", "defmt"]}
 # some-hal = "1.2.3"
 
 [dev-dependencies]
-defmt-test = "0.3"
+defmt-test = "0.5.0"
 
 # cargo build/run
 [profile.dev]

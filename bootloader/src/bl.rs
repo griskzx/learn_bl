@@ -1,3 +1,61 @@
+// OutputPin Trait 来自 embedded-hal，stm32f4xx_hal 已经通过 hal_02 内部重新导出了它
+// 用 use stm32f4xx_hal::hal_02::digital::v2::OutputPin 即可引入
+use stm32f4xx_hal::hal_02::digital::v2::OutputPin;
+use crate::{FirmwareHeader, APP_CODE_ADDR, APP_HEADER_ADDR, MAGIC_NUMBER};
+use crate::firmware::CRC_ALGO;
+// ✅ 正确写法：用泛型参数 P 并约束它必须实现 OutputPin Trait
+// 这样任何 GPIO 输出引脚（如 pb14）都可以作为参数传入，而不是写死为某个具体的引脚类型
+pub fn check_and_jump_app<P: OutputPin>(led_red: &mut P) -> ! {
+    // ===================== 第一步：读取固件头 =====================
+    let header_ptr = APP_HEADER_ADDR as *const FirmwareHeader;
+    let header = unsafe { core::ptr::read_volatile(header_ptr) };
+
+    // ===================== 第二步：验证魔数 =====================
+    if header.magic != MAGIC_NUMBER {
+        defmt::error!(
+            "Magic mismatch! expected=0x{:08x}, got=0x{:08x}",
+            MAGIC_NUMBER,
+            header.magic
+        );
+        // OutputPin::set_high() 返回 Result，用 ok() 忽略错误
+        let _ = led_red.set_high();
+        loop {}
+    }
+    defmt::info!(
+        "Magic OK. version=0x{:08x}, size={} bytes",
+        header.version,
+        header.size
+    );
+
+    // ===================== 第三步：计算并校验 CRC32 =====================
+    let app_code_slice: &[u8] =
+        unsafe { core::slice::from_raw_parts(APP_CODE_ADDR as *const u8, header.size as usize) };
+
+    let computed_crc = CRC_ALGO.checksum(app_code_slice);
+
+    defmt::info!(
+        "CRC check: computed=0x{:08x}, expected=0x{:08x}",
+        computed_crc,
+        header.crc
+    );
+
+    if computed_crc != header.crc {
+        defmt::error!("CRC MISMATCH! Firmware corrupted, refusing to boot.");
+        let _ = led_red.set_high();
+        loop {}
+    }
+
+    // ===================== 校验通过，跳转！ =====================
+    defmt::info!("Firmware OK! Jumping to 0x{:08x}", APP_CODE_ADDR);
+
+    unsafe {
+        jump_to_app(APP_CODE_ADDR);
+    }
+    // jump_to_app 内部用 options(noreturn) 的汇编永远不会返回
+    // 但 Rust 类型系统看不到这一点，所以加一个 loop {} 来满足 -> ! 的返回类型
+    loop {}
+}
+
 pub unsafe fn jump_to_app(app_addr: u32) {
     // 建议注释掉全局中断关闭，因为这会设置 PRIMASK，导致 app 默认无法响应任何中断
     // cortex_m::interrupt::disable();
@@ -30,9 +88,12 @@ pub unsafe fn jump_to_app(app_addr: u32) {
 
     // 3. 关闭 HSE, CSS, PLL
     rcc.cr().modify(|_, w| {
-        w.hseon().clear_bit()
-         .csson().clear_bit()
-         .pllon().clear_bit()
+        w.hseon()
+            .clear_bit()
+            .csson()
+            .clear_bit()
+            .pllon()
+            .clear_bit()
     });
 
     // 4. 恢复 PLLCFGR 和 CIR (中断) 寄存器

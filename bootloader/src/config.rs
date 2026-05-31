@@ -4,6 +4,8 @@ use stm32f4xx_hal::{
     rcc::{Config, Rcc},
 };
 
+
+
 /// Configure the system clocks using the High-Speed External (HSE) oscillator.
 ///
 /// This configures:
