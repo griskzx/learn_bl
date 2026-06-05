@@ -4,7 +4,8 @@ use stm32f4xx_hal::{
     rcc::{Config, Rcc},
 };
 
-
+//临时占位，地址后续必须修改
+pub const COS_ADDR:u32 =0x0808_0000; 
 
 /// Configure the system clocks using the High-Speed External (HSE) oscillator.
 ///

@@ -6,7 +6,7 @@ use stm32f4xx_hal::hal_02::serial::Read;
 use stm32f4xx_hal::nb;
 use stm32f4xx_hal::{
     serial::Rx2,
-    pac::USART2
+    pac::Peripherals
 };
 use crate::bl::OTA_ERROR::ERROR1;
 use crate::bl::OTA_ERROR::ERROR2;
@@ -151,17 +151,21 @@ pub enum OTA_ERROR {
     ERROR2,
 }
 
-pub fn ota_recive<P:InputPin,const N:usize >(
+pub fn ota_recive<P:InputPin>(
+    dp: &Peripherals,
     button:&mut P,
     rx:&mut Rx2,
-    rx_queue:&mut Queue<u8,N>
+    rx_queue:&mut Queue<u8,128>
 )->Result<(),OTA_ERROR>{
     if button.is_low().unwrap_or(false){
         return Err(ERROR1);
     }
+    let mut count =0 ;
+    let mut has_started = false;
     loop {
         match rx.read() {
             Ok(byte) =>{
+                has_started =true;
                 rx_queue.force_enqueue(byte);
             }
             Err(nb::Error::WouldBlock) =>{}
@@ -170,11 +174,46 @@ pub fn ota_recive<P:InputPin,const N:usize >(
             }
         }
         if rx_queue.is_full(){
-            on_frame_full(rx_queue);
+            use crate::config::COS_ADDR;
+            //强制缓冲区大小为128
+            on_frame_full(rx_queue,COS_ADDR+(count*124));
+            count +=1;
             rx_queue.clear();
         }
+        if has_started {
+            let usart=&dp.USART2;
+            if usart.sr().read().idle().bit_is_set() {
+                let _dummy =usart.dr().read().bits();
+                break;
+            }
+        }
     }
+    Ok(())
 }
-pub fn on_frame_full<const N:usize>(queue:&mut Queue<u8,N>){
-    unimplemented!()
+pub fn on_frame_full(queue:&mut Queue<u8,128>,addr:u32){
+    //由于是一个满队列进入此函数所以正常情况下队列里面不可能为空
+    let mut data = [0u32;124/4];
+    for i in 0..124/4 {
+        let mut values =[0u8;4];
+        for j in 0..4 {
+            values[j] = queue.dequeue().unwrap();
+        }
+        data[i] = u32::from_le_bytes(values);
+    }
+    let mut crc_bytes =[0u8;4];
+    for i in 0..4 {
+        crc_bytes[i] = queue.dequeue().unwrap();
+    }
+
+    //将4字节还原为u32
+    let expected_crc = u32::from_le_bytes(crc_bytes);
+    //计算校验和
+    let computed_crc = crate::crc::hw_crc32(&data);
+
+    if computed_crc == expected_crc {
+        unsafe {
+            let _=crate::flash::flash_write_words(addr,&data);
+        }
+    }
+    // unimplemented!()
 }

@@ -19,7 +19,6 @@ fn main() -> ! {
     let cp = cortex_m::peripheral::Peripherals::take().unwrap();
     let mut rcc = learn_bootloader::config::init_clocks(dp.RCC);
     let _clock = rcc.clocks;
-
     let gpioa = dp.GPIOA.split(&mut rcc);
     let gpiob = dp.GPIOB.split(&mut rcc);
     let gpiod = dp.GPIOD.split(&mut rcc);
