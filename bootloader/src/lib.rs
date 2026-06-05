@@ -3,7 +3,8 @@
 pub mod bl;
 pub mod config;
 pub mod firmware;
-
+pub mod queue;
+pub mod crc;
 
 pub use firmware::{FirmwareHeader,MAGIC_NUMBER,APP_CODE_ADDR,APP_HEADER_ADDR};
 

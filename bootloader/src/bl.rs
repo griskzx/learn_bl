@@ -1,6 +1,16 @@
+use stm32f4xx_hal::hal_02::digital::v2::InputPin;
 // OutputPin Trait 来自 embedded-hal，stm32f4xx_hal 已经通过 hal_02 内部重新导出了它
 // 用 use stm32f4xx_hal::hal_02::digital::v2::OutputPin 即可引入
 use stm32f4xx_hal::hal_02::digital::v2::OutputPin;
+use stm32f4xx_hal::hal_02::serial::Read;
+use stm32f4xx_hal::nb;
+use stm32f4xx_hal::{
+    serial::Rx2,
+    pac::USART2
+};
+use crate::bl::OTA_ERROR::ERROR1;
+use crate::bl::OTA_ERROR::ERROR2;
+use crate::queue::Queue;
 use crate::{FirmwareHeader, APP_CODE_ADDR, APP_HEADER_ADDR, MAGIC_NUMBER};
 use crate::firmware::CRC_ALGO;
 // ✅ 正确写法：用泛型参数 P 并约束它必须实现 OutputPin Trait
@@ -135,6 +145,36 @@ pub unsafe fn jump_to_app(app_addr: u32) {
     }
 }
 
-// pub fn start_up_app(){
+pub enum OTA_ERROR {
+    //Temporary placeholder
+    ERROR1,
+    ERROR2,
+}
 
-// }
+pub fn ota_recive<P:InputPin,const N:usize >(
+    button:&mut P,
+    rx:&mut Rx2,
+    rx_queue:&mut Queue<u8,N>
+)->Result<(),OTA_ERROR>{
+    if button.is_low().unwrap_or(false){
+        return Err(ERROR1);
+    }
+    loop {
+        match rx.read() {
+            Ok(byte) =>{
+                rx_queue.force_enqueue(byte);
+            }
+            Err(nb::Error::WouldBlock) =>{}
+            Err(_)=>{
+                return Err(ERROR2);
+            }
+        }
+        if rx_queue.is_full(){
+            on_frame_full(rx_queue);
+            rx_queue.clear();
+        }
+    }
+}
+pub fn on_frame_full<const N:usize>(queue:&mut Queue<u8,N>){
+    unimplemented!()
+}
