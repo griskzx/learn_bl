@@ -4,6 +4,15 @@ version = "0.1.0"
 authors = ["griskzx"]
 edition = "2024"
 
+[lib]
+test = false
+doctest = false
+
+[[bin]]
+name = "learn_bootloader"
+path = "src/main.rs"
+test = false
+
 [dependencies]
 cortex-m = "0.7"
 cortex-m-rt = "0.7"
