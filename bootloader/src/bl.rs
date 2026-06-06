@@ -1,3 +1,4 @@
+use stm32f4xx_hal::serial::RxISR;
 use stm32f4xx_hal::hal_02::digital::v2::InputPin;
 // OutputPin Trait 来自 embedded-hal，stm32f4xx_hal 已经通过 hal_02 内部重新导出了它
 // 用 use stm32f4xx_hal::hal_02::digital::v2::OutputPin 即可引入
@@ -180,9 +181,8 @@ pub fn ota_recive<P:InputPin>(
             rx_queue.clear();
         }
         if has_started {
-            let usart = unsafe { &*stm32f4xx_hal::pac::USART2::ptr() };
-            if usart.sr().read().idle().bit_is_set() {
-                let _dummy = usart.dr().read().bits();
+            if rx.is_idle() {
+                rx.clear_idle_interrupt();
                 break;
             }
         }
