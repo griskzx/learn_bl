@@ -152,7 +152,6 @@ pub enum OTA_ERROR {
 }
 
 pub fn ota_recive<P:InputPin>(
-    dp: &Peripherals,
     button:&mut P,
     rx:&mut Rx2,
     rx_queue:&mut Queue<u8,128>
@@ -181,9 +180,9 @@ pub fn ota_recive<P:InputPin>(
             rx_queue.clear();
         }
         if has_started {
-            let usart=&dp.USART2;
+            let usart = unsafe { &*stm32f4xx_hal::pac::USART2::ptr() };
             if usart.sr().read().idle().bit_is_set() {
-                let _dummy =usart.dr().read().bits();
+                let _dummy = usart.dr().read().bits();
                 break;
             }
         }
