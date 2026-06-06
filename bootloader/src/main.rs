@@ -30,15 +30,17 @@ fn main() -> ! {
     // 串口2引脚复用配置
     let rx_pin = gpioa.pa3.into_alternate();
     let tx_pin = gpiod.pd5.into_alternate();
-    let serial_config = stm32f4xx_hal::serial::config::Config::default()
-        .baudrate(115200.bps());
+    let serial_config = stm32f4xx_hal::serial::config::Config::default().baudrate(115200.bps());
     let serial = Serial::new(dp.USART2, (tx_pin, rx_pin), serial_config, &mut rcc).unwrap();
     let (mut tx, mut rx) = serial.split();
 
     // 红灯：校验失败时亮（pb14）
     let mut led_red = gpiob.pb14.into_push_pull_output();
     led_red.set_low();
+
+    // 获取按键引脚
     let mut button = learn_bootloader::pac::get_button(dp.GPIOC, &mut rcc);
+
     writeln!(tx, "\r\n---------------------------------------------").unwrap();
     writeln!(tx, "Bootloader Start! Waiting 3s for upgrade (0x5A)...").unwrap();
     defmt::info!("Bootloader started. Waiting 3s for upgrade command (0x5A)...");
