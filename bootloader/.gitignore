@@ -15,3 +15,6 @@
 # SVD 文件（体积大，由工具链自动获取）
 *.svd
 *.svd.svd
+
+# 自动生成的 Session HTML 文件
+*.html
