@@ -1,53 +1,105 @@
-// #![deny(unsafe_code)]
 #![no_main]
 #![no_std]
 
-use defmt_rtt as _;
-use learn_bootloader::{bl::ota_recive, prelude::*, queue::Queue};
-use panic_probe as _;
+use bootloader as _; // global logger + panicking-behavior + memory layout
+use cortex_m::Peripherals as CrxPeripherals;
+use defmt::Format; // <- derive attribute
+use stm32f4xx_hal::{
+    otg_fs::{USB, UsbBus},
+    pac::Peripherals as Stm32Peripherals,
+    prelude::*,
+    rcc, serial,
+};
+use usb_device::{device::StringDescriptors, prelude::*};
 
-// 用于支持格式化打印
-use core::fmt::Write as FmtWrite;
+//端点缓冲区内存
+static mut EP_MEMORY: [u32; 1024] = [0; 1024];
 
-use cortex_m_rt::entry;
-use stm32f4xx_hal::{nb, prelude::*, serial::Serial};
-
-#[allow(clippy::empty_loop)]
-#[entry]
+#[cortex_m_rt::entry]
 fn main() -> ! {
-    let dp = stm32f4xx_hal::pac::Peripherals::take().unwrap();
-    let cp = cortex_m::peripheral::Peripherals::take().unwrap();
-    let mut rcc = learn_bootloader::config::init_clocks(dp.RCC);
-    let _clock = rcc.clocks;
+    //获取srtm32外设
+    let dp = Stm32Peripherals::take().unwrap();
+    //获取cortex外设
+    let cp = CrxPeripherals::take().unwrap();
+
+    //配置时钟树
+    let rcc = rcc::Config::hse(8.MHz())
+        .bypass_hse_oscillator() // 告诉芯片时钟是有源旁路输入
+        .sysclk(168.MHz())
+        .hclk(168.MHz())
+        .pclk1(42.MHz())
+        .pclk2(84.MHz())
+        .require_pll48clk();
+    let mut rcc = dp.RCC.freeze(rcc);
+
+    let clocks = rcc.clocks;
+    //分离引脚
     let gpioa = dp.GPIOA.split(&mut rcc);
     let gpiob = dp.GPIOB.split(&mut rcc);
-    let gpiod = dp.GPIOD.split(&mut rcc);
+    let gpioc = dp.GPIOC.split(&mut rcc);
 
-    let mut delay = cp.SYST.delay(&_clock);
-    let mut timeout_ms = 3000;
-    let poll_interval_ms = 10;
-
-    // 串口2引脚复用配置
-    let rx_pin = gpioa.pa3.into_alternate();
-    let tx_pin = gpiod.pd5.into_alternate();
-    let serial_config = stm32f4xx_hal::serial::config::Config::default().baudrate(115200.bps());
-    let serial = Serial::new(dp.USART2, (tx_pin, rx_pin), serial_config, &mut rcc).unwrap();
-    let (mut tx, mut rx) = serial.split();
-
-    // 红灯：校验失败时亮（pb14）
+    //推晚输出
+    let mut led_green = gpiob.pb0.into_push_pull_output();
+    let mut led_bule = gpiob.pb7.into_push_pull_output();
     let mut led_red = gpiob.pb14.into_push_pull_output();
+
+    led_green.set_low();
+    led_bule.set_low();
     led_red.set_low();
 
-    // 获取按键引脚
-    let mut button = learn_bootloader::pac::get_button(dp.GPIOC, &mut rcc);
+    let button = gpioc.pc13.into_floating_input();
 
-    writeln!(tx, "\r\n---------------------------------------------").unwrap();
-    writeln!(tx, "Bootloader Start! Waiting 3s for upgrade (0x5A)...").unwrap();
-    defmt::info!("Bootloader started. Waiting 3s for upgrade command (0x5A)...");
+    //设置延迟
+    let mut delay = cp.SYST.delay(&clocks);
 
-    let mut upgrade_mode = false;
-    let mut rx_queue: Queue<u8, 128> = Queue::new();
+    //init usb
+    // 1.配置外设
+    let usb = USB::new(
+        (dp.OTG_FS_GLOBAL, dp.OTG_FS_DEVICE, dp.OTG_FS_PWRCLK),
+        (gpioa.pa11, gpioa.pa12),
+        &clocks,
+    );
+    // 2.构建端点总线 UsbBus
+    let usb_bus = UsbBus::new(usb, unsafe { &mut *core::ptr::addr_of_mut!(EP_MEMORY) });
+    let mut serial = usbd_serial::SerialPort::new(&usb_bus);
+    let mut usb_dev = UsbDeviceBuilder::new(&usb_bus, UsbVidPid(0x16c0, 0x27dd))
+        .device_class(usbd_serial::USB_CLASS_CDC)
+        .strings(&[StringDescriptors::default()
+            .manufacturer("My Company")
+            .product("Serial Port")
+            .serial_number("001")])
+        .unwrap()
+        .build();
+    let mut buf = [0u8; 64];
+
+    let mut led_toggle = || {
+        led_green.set_high();
+        delay.delay_ms(500);
+        led_bule.set_high();
+        delay.delay_ms(500);
+        led_red.set_high();
+        delay.delay_ms(500);
+        led_green.set_low();
+        led_bule.set_low();
+        led_red.set_low();
+        delay.delay_ms(500);
+    };
     loop {
-        let _ = ota_recive(&mut button, &mut rx, &mut rx_queue);
+        // defmt::info!("test frimware...");
+        // led_toggle();
+        if !usb_dev.poll(&mut [&mut serial]) {
+            continue;
+        }
+        match serial.read(&mut buf) {
+            Ok(count) if count > 0 => {
+                for c in buf[0..count].iter_mut() {
+                    if *c >= b'a' && *c <= b'z' {
+                        *c -= 32;
+                    }
+                }
+                serial.write(&buf[0..count]).ok();
+            }
+            _ => {}
+        }
     }
 }

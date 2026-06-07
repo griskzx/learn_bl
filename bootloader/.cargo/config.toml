@@ -1,27 +1,30 @@
 [target.'cfg(all(target_arch = "arm", target_os = "none"))']
-runner = "probe-rs run --chip STM32F439ZITx"
+# TODO(2) replace `$CHIP` with your chip's name (see `probe-rs chip list` output)
+runner = ["probe-rs", "run", "--chip", "STM32F439ZITx", "--log-format=oneline"]
+# If you have an nRF52, you might also want to add "--allow-erase-all" to the list
 
 rustflags = [
-  # LLD (shipped with the Rust toolchain) is used as the default linker
+  "-C", "linker=flip-link",
   "-C", "link-arg=-Tlink.x",
   "-C", "link-arg=-Tdefmt.x",
-  # "-C", "link-arg=-Tstlog.x",
-
-  # if you run into problems with LLD switch to the GNU linker by commenting out
-  # this line
-  # "-C", "linker=arm-none-eabi-ld",
-
-  # if you need to link to pre-compiled C libraries provided by a C toolchain
-  # use GCC as the linker by commenting out both lines above and then
-  # uncommenting the three lines below
-  # "-C", "linker=arm-none-eabi-gcc",
-  # "-C", "link-arg=-Wl,-Tlink.x",
-  # "-C", "link-arg=-nostartfiles",
+  # This is needed if your flash or ram addresses are not aligned to 0x10000 in memory.x
+  # See https://github.com/rust-embedded/cortex-m-quickstart/pull/95
+  "-C", "link-arg=--nmagic",
 ]
 
 [build]
-target = "thumbv7em-none-eabihf"
+# TODO(3) Adjust the compilation target.
+# Select the correct target for your processor:
+# target = "thumbv6m-none-eabi"    # Cortex-M0 and Cortex-M0+
+# target = "thumbv7m-none-eabi"    # Cortex-M3
+# target = "thumbv7em-none-eabi"   # Cortex-M4 and Cortex-M7 (no FPU)
+target = "thumbv7em-none-eabihf" # Cortex-M4F and Cortex-M7F (with FPU)
+
+[alias]
+# `cargo rb foo` will expand to `cargo run --bin foo`
+rb = "run --bin"
+# `cargo rrb foo` will expand to `cargo run --release --bin foo`
+rrb = "run --release --bin"
 
 [env]
 DEFMT_LOG = "info"
-CHIPSERIE = "stm32f439"
