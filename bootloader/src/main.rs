@@ -53,15 +53,18 @@ fn main() -> ! {
     let mut delay = cp.SYST.delay(&clocks);
 
     //init usb
-    // 1.配置外设
+    // 1.配置外设 绑定物理硬件
     let usb = USB::new(
         (dp.OTG_FS_GLOBAL, dp.OTG_FS_DEVICE, dp.OTG_FS_PWRCLK),
         (gpioa.pa11, gpioa.pa12),
         &clocks,
     );
     // 2.构建端点总线 UsbBus
+    // 总线管理者：将底层的硬件驱动和上层的应用协议连接起来
     let usb_bus = UsbBus::new(usb, unsafe { &mut *core::ptr::addr_of_mut!(EP_MEMORY) });
+    //虚拟串口协议
     let mut serial = usbd_serial::SerialPort::new(&usb_bus);
+    //设备描述符
     let mut usb_dev = UsbDeviceBuilder::new(&usb_bus, UsbVidPid(0x16c0, 0x27dd))
         .device_class(usbd_serial::USB_CLASS_CDC)
         .strings(&[StringDescriptors::default()
@@ -70,6 +73,7 @@ fn main() -> ! {
             .serial_number("001")])
         .unwrap()
         .build();
+
     let mut buf = [0u8; 64];
 
     let mut led_toggle = || {
