@@ -5,6 +5,7 @@ use bootloader as _; // global logger + panicking-behavior + memory layout
 use cortex_m::Peripherals as CrxPeripherals;
 use defmt::Format; // <- derive attribute
 use stm32f4xx_hal::{
+    flash::{FlashExt, LockedFlash},
     otg_fs::{USB, UsbBus},
     pac::Peripherals as Stm32Peripherals,
     prelude::*,
@@ -74,6 +75,9 @@ fn main() -> ! {
         .unwrap()
         .build();
 
+    let mut locked_flash = LockedFlash::new(dp.FLASH);
+    let mut unlocked_flash = locked_flash.unlocked();
+
     let mut buf = [0u8; 64];
 
     let mut led_toggle = || {
@@ -89,21 +93,38 @@ fn main() -> ! {
         delay.delay_ms(500);
     };
     loop {
+        if button.is_high() {
+            if !usb_dev.poll(&mut [&mut serial]) {
+                continue;
+                // return Err(UsbError::WouldBlock);
+            }
+            led_toggle();
+            if let Ok(_) = bootloader::bootloader::firmware_reicve(
+                &mut unlocked_flash,
+                &mut usb_dev,
+                &mut serial,
+                &mut buf,
+            ) {
+                continue;
+            }
+        }
+
+        // }
         // defmt::info!("test frimware...");
         // led_toggle();
-        if !usb_dev.poll(&mut [&mut serial]) {
-            continue;
-        }
-        match serial.read(&mut buf) {
-            Ok(count) if count > 0 => {
-                for c in buf[0..count].iter_mut() {
-                    if *c >= b'a' && *c <= b'z' {
-                        *c -= 32;
-                    }
-                }
-                serial.write(&buf[0..count]).ok();
-            }
-            _ => {}
-        }
+        // if !usb_dev.poll(&mut [&mut serial]) {
+        //     continue;
+        // }
+        // match serial.read(&mut buf) {
+        //     Ok(count) if count > 0 => {
+        //         for c in buf[0..count].iter_mut() {
+        //             if *c >= b'a' && *c <= b'z' {
+        //                 *c -= 32;
+        //             }
+        //         }
+        //         serial.write(&buf[0..count]).ok();
+        //     }
+        //     _ => {}
+        // }
     }
 }

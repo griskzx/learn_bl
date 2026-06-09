@@ -2,7 +2,6 @@
 #![no_std]
 
 pub mod bootloader;
-pub mod usb;
 
 use defmt_rtt as _; // global logger
 

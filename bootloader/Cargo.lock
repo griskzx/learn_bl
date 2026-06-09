@@ -38,6 +38,7 @@ dependencies = [
  "defmt 1.1.0",
  "defmt-rtt",
  "defmt-test",
+ "embedded-storage",
  "panic-probe",
  "semihosting",
  "stm32f4xx-hal",
