@@ -1,6 +1,6 @@
 use embedded_storage::nor_flash::NorFlash;
 use stm32f4xx_hal::{
-    flash::{Error as FlashError, UnlockedFlash},
+    flash::UnlockedFlash,
     otg_fs::{USB, UsbBus},
 };
 use usb_device::{UsbError, prelude::*};
@@ -10,8 +10,12 @@ type MyBus = UsbBus<USB>;
 type MyUsbDeV<'a> = UsbDevice<'a, MyBus>;
 type MySerial<'a> = SerialPort<'a, MyBus>;
 
-const APP_ADDR_BEGIN: u32 = 0x0801_0000;
-const APP_ADDR_END: u32 = 0x0802_0000;
+pub const APP_ADDR_BEGIN: u32 = 0x0801_0000;
+pub const APP_ADDR_END: u32 = 0x0802_0000;
+
+/// 接收固件并写入 Flash。
+/// 注意：调用前须已完成 Flash 擦除（擦除耗时数百毫秒会导致 USB 断连）。
+/// 以 b"helloworld" 作为结束标志，收到后返回 Ok(())。
 pub fn firmware_reicve<'a>(
     flash: &mut UnlockedFlash<'_>,
     usb_dev: &mut MyUsbDeV<'a>,
@@ -19,22 +23,25 @@ pub fn firmware_reicve<'a>(
     buf: &mut [u8],
 ) -> Result<(), UsbError> {
     let mut addr = APP_ADDR_BEGIN;
-    NorFlash::erase(flash, APP_ADDR_BEGIN, APP_ADDR_END).unwrap();
+    // Erase 已在调用方完成，此处直接进入接收循环
     loop {
         if !usb_dev.poll(&mut [serial]) {
             continue;
-            // return Err(UsbError::WouldBlock);
         }
-        let count = serial.read(buf)?;
-        if count == 0 {
-            continue;
+        match serial.read( buf) {
+            Ok(count) if count > 0 => {
+                NorFlash::write(flash, addr, &buf[0..count]).unwrap();
+                if &buf[0..count] == b"helloworld" {
+                    return Ok(());
+                }
+                serial.write(&buf[0..count]).ok();
+                addr += count as u32;
+            }
+            _ => {}
         }
         // flash_write(flash, addr, &buf[0..count]).unwrap();
-        NorFlash::write(flash, addr, &buf[0..count]).unwrap();
-        if &buf[0..count] == b"helloworld" {
-            return Ok(());
-        }
-        addr += count as u32;
+        
+        
     }
 }
 

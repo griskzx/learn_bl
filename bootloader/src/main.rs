@@ -2,14 +2,15 @@
 #![no_std]
 
 use bootloader as _; // global logger + panicking-behavior + memory layout
+use bootloader::bootloader::{APP_ADDR_BEGIN, APP_ADDR_END};
 use cortex_m::Peripherals as CrxPeripherals;
-use defmt::Format; // <- derive attribute
+use embedded_storage::nor_flash::NorFlash;
 use stm32f4xx_hal::{
     flash::{FlashExt, LockedFlash},
     otg_fs::{USB, UsbBus},
     pac::Peripherals as Stm32Peripherals,
     prelude::*,
-    rcc, serial,
+    rcc,
 };
 use usb_device::{device::StringDescriptors, prelude::*};
 
@@ -92,20 +93,26 @@ fn main() -> ! {
         led_red.set_low();
         delay.delay_ms(500);
     };
+    let mut erased = false; // 避免每次按键都重复擦除
     loop {
+        // USB 必须在所有状态下持续 poll，否则主机会认为设备断连
+        usb_dev.poll(&mut [&mut serial]);
+
         if button.is_high() {
-            if !usb_dev.poll(&mut [&mut serial]) {
-                continue;
-                // return Err(UsbError::WouldBlock);
+            // 第一步：擦除 Flash（耗时长，但外层 loop 依然在 poll USB）
+            if !erased {
+                NorFlash::erase(&mut unlocked_flash, APP_ADDR_BEGIN, APP_ADDR_END).unwrap();
+                erased = true;
             }
-            led_toggle();
+            // 第二步：接收固件并写入（每包写入仅微秒级，不影响 USB）
             if let Ok(_) = bootloader::bootloader::firmware_reicve(
                 &mut unlocked_flash,
                 &mut usb_dev,
                 &mut serial,
                 &mut buf,
             ) {
-                continue;
+                erased = false; // 下次按键重新擦除
+                led_toggle();   // 接收成功后再闪灯
             }
         }
 
